@@ -7,6 +7,7 @@ import neurokit2 as nk
 import numpy as np
 import requests
 import json
+import random
 from datetime import datetime
 from typing import List, Dict, Any
 import sys
@@ -25,6 +26,9 @@ def generate_ecg_sample(condition: Dict[str, Any], sampling_rate: int = 1000, du
         Dictionary containing ECG signal and processed indicators
     """
     try:
+        # Generate random seed for each generation to get different data
+        random_seed = random.randint(0, 2**31 - 1)
+        
         # Simulate ECG signal
         if condition["name"] == "atrial_fibrillation":
             # For AFib, use ecgsyn method with added irregularity
@@ -34,7 +38,7 @@ def generate_ecg_sample(condition: Dict[str, Any], sampling_rate: int = 1000, du
                 heart_rate=condition["heart_rate"],
                 noise=condition["noise"],
                 method="ecgsyn",
-                random_state=42
+                random_state=random_seed
             )
         else:
             # Use ecgsyn method for single lead, or extract first lead from multilead
@@ -44,7 +48,7 @@ def generate_ecg_sample(condition: Dict[str, Any], sampling_rate: int = 1000, du
                 heart_rate=condition["heart_rate"],
                 noise=condition["noise"],
                 method="ecgsyn",
-                random_state=42
+                random_state=random_seed
             )
             # If multilead is needed, uncomment below and use first lead
             # ecg_multilead = nk.ecg_simulate(

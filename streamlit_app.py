@@ -50,17 +50,9 @@ if 'llm_results' not in st.session_state:
     st.session_state.llm_results = {}
 
 
-def generate_ecg_data(sampling_rate: int = 1000, duration: int = 10) -> Dict[str, Any]:
+def generate_ecg_data(selected_conditions: List[Dict[str, Any]], sampling_rate: int = 1000, duration: int = 10) -> Dict[str, Any]:
     """Generate ECG data on the fly."""
-    conditions = [
-        {"name": "normal", "heart_rate": 70, "noise": 0.0},
-        {"name": "tachycardia", "heart_rate": 120, "noise": 0.0},
-        {"name": "bradycardia", "heart_rate": 50, "noise": 0.0},
-        {"name": "noisy_normal", "heart_rate": 70, "noise": 0.5},
-        {"name": "atrial_fibrillation", "heart_rate": 80, "noise": 0.1}
-    ]
-    
-    samples = generate_all_samples(conditions, sampling_rate, duration)
+    samples = generate_all_samples(selected_conditions, sampling_rate, duration)
     
     return {
         "samples": samples,
@@ -921,6 +913,17 @@ def clean_markdown_text(text: str) -> str:
     return cleaned.strip()
 
 
+def get_prompt_type_display_name(prompt_type: str) -> str:
+    """Get a human-readable display name for a prompt type."""
+    display_names = {
+        "clinical_note": "Clinical Note",
+        "detailed_report": "Detailed Report",
+        "analysis": "Analysis",
+        "summary": "Summary"
+    }
+    return display_names.get(prompt_type, prompt_type.replace("_", " ").title())
+
+
 def display_sample_info(sample: Dict[str, Any]):
     """Display detailed information about an ECG sample."""
     st.subheader(f"Condition: {sample['condition'].replace('_', ' ').title()}")
@@ -951,13 +954,59 @@ def main():
     with st.sidebar:
         st.header("⚙️ Configuration")
         
+        # ECG Condition Selection
+        st.subheader("📋 ECG Conditions")
+        
+        # Define available conditions
+        available_conditions = {
+            "Normal": {"name": "normal", "heart_rate": 70, "noise": 0.0, "description": "Normal sinus rhythm"},
+            "Tachycardia": {"name": "tachycardia", "heart_rate": 120, "noise": 0.0, "description": "Fast heart rate (>100 bpm)"},
+            "Bradycardia": {"name": "bradycardia", "heart_rate": 50, "noise": 0.0, "description": "Slow heart rate (<60 bpm)"},
+            "Noisy Normal": {"name": "noisy_normal", "heart_rate": 70, "noise": 0.5, "description": "Normal rhythm with noise"},
+            "Atrial Fibrillation": {"name": "atrial_fibrillation", "heart_rate": 80, "noise": 0.1, "description": "Irregular heart rhythm"}
+        }
+        
+        # Initialize selected conditions in session state
+        if 'selected_condition_keys' not in st.session_state:
+            st.session_state.selected_condition_keys = list(available_conditions.keys())
+        
+        # Simple checkbox-based selection
+        st.markdown("**Select Conditions to Generate**")
+        
+        # Use checkboxes in a clean layout
+        selected_condition_keys = []
+        for condition_key in available_conditions.keys():
+            checkbox_key = f"condition_{condition_key}"
+            # Initialize default value from session state if first time
+            default_value = condition_key in st.session_state.selected_condition_keys
+            
+            # Display checkbox - Streamlit automatically manages state via key
+            if st.checkbox(
+                condition_key,
+                value=default_value,
+                key=checkbox_key,
+                help=available_conditions[condition_key]["description"]
+            ):
+                selected_condition_keys.append(condition_key)
+        
+        # Update session state
+        st.session_state.selected_condition_keys = selected_condition_keys
+        
+        # Show selection summary
+        if selected_condition_keys:
+            st.info(f"✓ {len(selected_condition_keys)} condition(s) selected")
+        else:
+            st.warning("⚠️ Please select at least one condition to generate.")
+        
         # Generate or Load data
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("🔄 Generate ECG Data", use_container_width=True, type="primary"):
+            if st.button("🔄 Generate ECG Data", use_container_width=True, type="primary", disabled=len(selected_condition_keys) == 0):
                 with st.spinner("Generating ECG samples... This may take a moment."):
                     try:
-                        data = generate_ecg_data()
+                        # Build conditions list from selected keys
+                        selected_conditions = [available_conditions[key] for key in selected_condition_keys]
+                        data = generate_ecg_data(selected_conditions)
                         st.session_state.ecg_data = data
                         st.success(f"✓ Generated {len(data['samples'])} samples")
                         st.rerun()
@@ -1221,9 +1270,14 @@ def main():
                         status_text.empty()
                         
                         if result['success']:
-                            st.session_state.llm_results[selected_idx] = result['data']
+                            # Store result with prompt_type for dynamic header display
+                            st.session_state.llm_results[selected_idx] = {
+                                'data': result['data'],
+                                'prompt_type': prompt_type
+                            }
                             job_id = result.get('job_id', 'N/A')
-                            st.success(f"✓ Clinical note generated successfully! (Job ID: {job_id[:8]}...)")
+                            display_name = get_prompt_type_display_name(prompt_type)
+                            st.success(f"✓ {display_name} generated successfully! (Job ID: {job_id[:8]}...)")
                         else:
                             error_msg = result.get('error', 'Unknown error')
                             is_timeout = result.get('timeout', False)
@@ -1280,8 +1334,21 @@ def main():
         
         # Display LLM results
         if selected_idx in st.session_state.llm_results:
-            st.subheader("📝 Generated Clinical Note")
-            result = st.session_state.llm_results[selected_idx]
+            # Get stored result (may be old format or new format with prompt_type)
+            stored_result = st.session_state.llm_results[selected_idx]
+            
+            # Handle both old format (just data) and new format (dict with data and prompt_type)
+            if isinstance(stored_result, dict) and 'data' in stored_result:
+                result = stored_result['data']
+                stored_prompt_type = stored_result.get('prompt_type', prompt_type)
+            else:
+                # Old format - just the data
+                result = stored_result
+                stored_prompt_type = prompt_type
+            
+            # Get display name for the prompt type
+            display_name = get_prompt_type_display_name(stored_prompt_type)
+            st.subheader(f"📝 Generated {display_name}")
             
             # The result from backend should be the LLM response data
             # Extract text from various response formats (including Gemini API format)
@@ -1332,9 +1399,9 @@ def main():
                 
                 # Download button for the clinical note
                 st.download_button(
-                    label="📥 Download Clinical Note",
+                    label=f"📥 Download {display_name}",
                     data=cleaned_text,
-                    file_name=f"clinical_note_{selected_sample['condition']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md",
+                    file_name=f"{stored_prompt_type}_{selected_sample['condition']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md",
                     mime="text/markdown"
                 )
             else:
