@@ -1,0 +1,98 @@
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: ecg-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-admin}
+      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=UTC
+      - N8N_METRICS=true
+      - N8N_LOG_LEVEL=info
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n_workflows:/data/workflows
+    networks:
+      - ecg-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: ecg-backend
+    restart: unless-stopped
+    ports:
+      - "5001:5000"
+    environment:
+      - N8N_WEBHOOK_URL=http://n8n:5678/webhook/336107ed-9ef6-48f3-afdc-92c57edf0ca9
+      - BACKEND_BASE_URL=http://backend:5000
+      - N8N_API_KEY=${N8N_API_KEY:-}
+      - N8N_USER=${N8N_USER:-admin}
+      - N8N_PASSWORD=${N8N_PASSWORD:-admin}
+    networks:
+      - ecg-network
+    depends_on:
+      n8n:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5000/health')"]
+      # Note: Health check uses internal port 5000, not host port 5001
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  streamlit-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ecg-streamlit
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    environment:
+      - N8N_WEBHOOK_URL=http://n8n:5678
+      - N8N_AGENT_WEBHOOK_URL=http://n8n:5678/webhook/336107ed-9ef6-48f3-afdc-92c57edf0ca9
+      - BACKEND_URL=http://backend:5000
+      # Note: Backend runs on port 5000 inside container, but mapped to 5001 on host
+      - N8N_API_KEY=${N8N_API_KEY:-}
+      # Optional: Only needed if not using N8N_API_KEY
+      - N8N_USER=${N8N_USER:-}
+      - N8N_PASSWORD=${N8N_PASSWORD:-}
+    volumes:
+      - ./data:/app/data
+    networks:
+      - ecg-network
+    depends_on:
+      n8n:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8501/_stcore/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  n8n_data:
+    driver: local
+
+networks:
+  ecg-network:
+    driver: bridge
+
