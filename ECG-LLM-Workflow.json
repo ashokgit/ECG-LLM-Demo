@@ -1,0 +1,542 @@
+{
+  "name": "ECG LLM Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://backend:5000/webhook/result",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "=job_id",
+              "value": "={{ $('Webhook - RECEIVE DATA FROM THE WEB').item.json.body.job_id }}"
+            },
+            {
+              "name": "success",
+              "value": "true"
+            },
+            {
+              "name": "data",
+              "value": "={{ $json.message.content }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        0
+      ],
+      "id": "69a1229f-c161-4e38-95d5-a522b8885741",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.0-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.0-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are analyzing preprocessed ECG data that includes:\n- Statistical features (distribution, shape metrics)\n- Morphological analysis (beat characteristics)\n- Frequency domain features (spectral properties)\n- Rhythm analysis (regularity patterns)\n- Signal quality metrics\n- Anomaly detection flags\n- Representative waveform samples\n\nGenerate a clinical note that interprets these features comprehensively."
+            },
+            {
+              "content": "=duration: {{ $json.ecg_comprehensive_analysis.duration_sec }}\nSampling Rate (hz) {{ $json.ecg_comprehensive_analysis.sampling_rate_hz }}\ntotal Samples: {{ $json.ecg_comprehensive_analysis.total_samples }}\nstastical features : {{ $json.ecg_comprehensive_analysis.statistical_features.toJsonString() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        -304,
+        512
+      ],
+      "id": "989d8ef0-7a54-4b4e-8425-df812f9e4d7a",
+      "name": "Message a model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "IIbsGBDRnWZQolZm",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "336107ed-9ef6-48f3-afdc-92c57edf0ca9",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -304,
+        0
+      ],
+      "id": "a85ebed1-6335-492b-a234-789351f57a86",
+      "name": "Webhook - RECEIVE DATA FROM THE WEB",
+      "webhookId": "336107ed-9ef6-48f3-afdc-92c57edf0ca9"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.prompt_type }}",
+                    "rightValue": "clinical_note",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "073d566d-dfb9-45e4-a66a-089371abfd22"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "d4e94df2-6888-4b8d-8694-729c8c4fb6d3",
+                    "leftValue": "={{ $json.body.prompt_type }}",
+                    "rightValue": "detailed_report",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "0f3dba86-eef9-4448-acd7-17402aac7ec0",
+                    "leftValue": "={{ $json.body.prompt_type }}",
+                    "rightValue": "analysis",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "d3e6f381-d5f7-4240-8816-0a0729e75743",
+                    "leftValue": "={{ $json.body.prompt_type }}",
+                    "rightValue": "summary",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        -80,
+        -32
+      ],
+      "id": "c8b76327-4fe7-498b-bbfb-c6106256a66f",
+      "name": "Switch AS PER TASK"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputData = $input.all();\nreturn inputData.map(item => {\n  const ecgData = item.json.body.ecg_data;\n  const signal = ecgData.ecg_signal;\n  const rPeaks = ecgData.indicators.r_peaks;\n\n  const mean = signal.reduce((a, b) => a + b, 0) / signal.length;\n  const sorted = [...signal].sort((a, b) => a - b);\n  const min = sorted[0];\n  const max = sorted[sorted.length - 1];\n  const std = Math.sqrt(signal.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / signal.length);\n\n  const beatFeatures = rPeaks.slice(1, -1).map((rPeak, idx) => {\n    const pWaveWindow = signal.slice(Math.max(0, rPeak - 200), Math.min(signal.length, rPeak - 40));\n    return { p_wave_present: Math.max(...pWaveWindow) > mean + std * 0.5 };\n  });\n  const pWaveConsistency = (beatFeatures.filter(b => b.p_wave_present).length / beatFeatures.length * 100).toFixed(1) + \"%\";\n\n  const rrIntervals = ecgData.indicators.rr_intervals;\n  const rrDifferences = rrIntervals.slice(1).map((rr, i) => Math.abs(rr - rrIntervals[i]));\n  const maxRRDiff = Math.max(...rrDifferences);\n  const avgRRDiff = rrDifferences.reduce((a, b) => a + b, 0) / rrDifferences.length;\n  const rhythmRegularity = maxRRDiff < 100 ? \"regular\" : maxRRDiff < 200 ? \"slightly_irregular\" : \"irregular\";\n\n  const noiseLevel = std / (max - min);\n  const baselineWander = Math.abs(mean);\n  const signalToNoiseRatio = (max - min) / std;\n\n  const anomalyFlags = {\n    abnormal_rr_variability: maxRRDiff > 300 ? 'Yes' : 'No',\n    baseline_drift: Math.abs(mean) > 0.1 ? 'Yes' : 'No',\n    low_amplitude: (max - min) < 0.5 ? 'Yes' : 'No',\n    high_noise: noiseLevel > 0.3 ? 'Yes' : 'No',\n    missing_p_waves: parseFloat(pWaveConsistency) < 50 ? 'Yes' : 'No',\n    tachycardia: ecgData.indicators.heart_rate_mean > 100 ? 'Yes' : 'No',\n    bradycardia: ecgData.indicators.heart_rate_mean < 60 ? 'Yes' : 'No'\n  };\n  const anomalyText = Object.entries(anomalyFlags).map(([key, value]) => `${key.replace(/_/g, ' ')}: ${value}`).join('\\n');\n\n  const text = `\nDuration: ${ecgData.duration} seconds\nSampling Rate: ${ecgData.sampling_rate} Hz\nTotal Samples: ${signal.length}\n\nHeart Rate Mean: ${ecgData.indicators.heart_rate_mean} bpm\nHRV RMSSD: ${ecgData.indicators.hrv_rmssd} ms\nQuality Mean: ${ecgData.indicators.quality_mean}\nCondition: ${ecgData.condition}\n\nRhythm Regularity: ${rhythmRegularity}\nMax RR Difference: ${maxRRDiff} ms\nAvg RR Difference: ${avgRRDiff.toFixed(2)} ms\nClassification: ${rhythmRegularity === \"regular\" ? \"sinus_rhythm\" : \"needs_review\"}\n\nNoise Level: ${noiseLevel.toFixed(4)}\nBaseline Wander: ${baselineWander.toFixed(4)}\nSNR: ${signalToNoiseRatio.toFixed(2)}\nOverall Grade: ${ecgData.indicators.quality_mean > 0.8 ? \"excellent\" : ecgData.indicators.quality_mean > 0.6 ? \"good\" : \"fair\"}\nP-Wave Consistency: ${pWaveConsistency}\n\nAnomaly Detection:\n${anomalyText}\n\nHeart Rate Status: ${ecgData.indicators.heart_rate_mean > 100 ? \"elevated (tachycardia possible)\" : ecgData.indicators.heart_rate_mean < 60 ? \"low (bradycardia possible)\" : \"normal\"}\nHRV Status: ${ecgData.indicators.hrv_rmssd > 20 ? \"healthy variability\" : \"reduced variability\"}\nRhythm Status: ${rhythmRegularity}\nOverall Assessment: ${ecgData.condition}\n  `;\n\n  return { json: { output: text.trim() } };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        -288
+      ],
+      "id": "96c802fc-9e6a-45ff-b695-358f751c6642",
+      "name": "PRE-PROCESS for CLINICAL NOTES"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputData = $input.all();\nreturn inputData.map(item => {\n  const ecgData = item.json.body.ecg_data;\n  const signal = ecgData.ecg_signal;\n  const rPeaks = ecgData.indicators.r_peaks;\n\n  const mean = signal.reduce((a, b) => a + b, 0) / signal.length;\n  const sorted = [...signal].sort((a, b) => a - b);\n  const min = sorted[0];\n  const max = sorted[sorted.length - 1];\n  const median = sorted[Math.floor(sorted.length / 2)];\n  const variance = signal.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / signal.length;\n  const std = Math.sqrt(variance);\n  const p25 = sorted[Math.floor(sorted.length * 0.25)];\n  const p75 = sorted[Math.floor(sorted.length * 0.75)];\n  const iqr = p75 - p25;\n  const skewness = signal.reduce((sum, val) => sum + Math.pow((val - mean) / std, 3), 0) / signal.length;\n  const kurtosis = signal.reduce((sum, val) => sum + Math.pow((val - mean) / std, 4), 0) / signal.length - 3;\n\n  const beatFeatures = rPeaks.slice(1, -1).map((rPeak, idx) => {\n    const qrsWindow = signal.slice(Math.max(0, rPeak - 40), Math.min(signal.length, rPeak + 40));\n    const tWaveWindow = signal.slice(Math.max(0, rPeak + 40), Math.min(signal.length, rPeak + 200));\n    const pWaveWindow = signal.slice(Math.max(0, rPeak - 200), Math.min(signal.length, rPeak - 40));\n    const nextRR = idx + 2 < rPeaks.length ? rPeaks[idx + 2] : null;\n    const currentRR = rPeaks[idx + 1] - rPeak;\n    const nextRRValue = nextRR ? nextRR - rPeaks[idx + 1] : null;\n    return `Beat ${idx + 1}: R Amplitude ${signal[rPeak].toFixed(4)}, QRS Amplitude Range ${ (Math.max(...qrsWindow) - Math.min(...qrsWindow)).toFixed(4) }, T Wave Amplitude ${ Math.max(...tWaveWindow).toFixed(4) }, P Wave Present ${ Math.max(...pWaveWindow) > mean + std * 0.5 }, RR Interval ms ${currentRR}, RR Variability ${ nextRRValue ? Math.abs(currentRR - nextRRValue) : 0 }`;\n  }).join('\\n');\n\n  const avgMorphology = {\n    avg_qrs_amplitude: (beatFeatures.reduce((sum, b) => sum + parseFloat(b.qrs_amplitude_range), 0) / beatFeatures.length).toFixed(4),\n    avg_t_amplitude: (beatFeatures.reduce((sum, b) => sum + parseFloat(b.t_wave_amplitude), 0) / beatFeatures.length).toFixed(4),\n    p_wave_consistency: (beatFeatures.filter(b => b.p_wave_present).length / beatFeatures.length * 100).toFixed(1) + \"%\"\n  };\n\n  let zeroCrossings = 0;\n  for (let i = 1; i < signal.length; i++) {\n    if ((signal[i] >= 0 && signal[i-1] < 0) || (signal[i] < 0 && signal[i-1] >= 0)) {\n      zeroCrossings++;\n    }\n  }\n  const dominantFrequency = (zeroCrossings / 2) / ecgData.duration;\n  const zeroCrossingRate = zeroCrossings / signal.length;\n  const lowFreqEnergy = (signal.filter(v => Math.abs(v) < mean + std * 0.5).length / signal.length * 100).toFixed(2) + \"%\";\n  const midFreqEnergy = (signal.filter(v => Math.abs(v) >= mean + std * 0.5 && Math.abs(v) < mean + std * 1.5).length / signal.length * 100).toFixed(2) + \"%\";\n  const highFreqEnergy = (signal.filter(v => Math.abs(v) >= mean + std * 1.5).length / signal.length * 100).toFixed(2) + \"%\";\n\n  const rrIntervals = ecgData.indicators.rr_intervals.join(', ');\n  const rrDifferences = ecgData.indicators.rr_intervals.slice(1).map((rr, i) => Math.abs(rr - ecgData.indicators.rr_intervals[i]));\n  const maxRRDiff = Math.max(...rrDifferences);\n  const avgRRDiff = rrDifferences.reduce((a, b) => a + b, 0) / rrDifferences.length;\n  const rhythmRegularity = maxRRDiff < 100 ? \"regular\" : maxRRDiff < 200 ? \"slightly_irregular\" : \"irregular\";\n\n  const importantIndices = new Set();\n  rPeaks.forEach(peak => {\n    for (let i = peak - 50; i <= peak + 50; i++) {\n      if (i >= 0 && i < signal.length) importantIndices.add(i);\n    }\n  });\n  for (let i = 0; i < signal.length; i += 100) {\n    importantIndices.add(i);\n  }\n  importantIndices.add(0);\n  importantIndices.add(signal.length - 1);\n  const compressedSignal = Array.from(importantIndices).sort((a, b) => a - b).map(idx => `${idx}: ${parseFloat(signal[idx].toFixed(4))}`).join(', ');\n\n  const representativeBeats = rPeaks.slice(0, 3).map((peak, idx) => {\n    const waveform = signal.slice(Math.max(0, peak - 100), Math.min(signal.length, peak + 200)).map(v => parseFloat(v.toFixed(4))).join(', ');\n    return `Beat ${idx + 1}: R Peak Index ${peak}, Waveform ${waveform}`;\n  }).join('\\n');\n\n  const noiseLevel = std / (max - min);\n  const baselineWander = Math.abs(mean);\n  const signalToNoiseRatio = (max - min) / std;\n\n  const anomalyFlags = {\n    abnormal_rr_variability: maxRRDiff > 300 ? 'Yes' : 'No',\n    baseline_drift: Math.abs(mean) > 0.1 ? 'Yes' : 'No',\n    low_amplitude: (max - min) < 0.5 ? 'Yes' : 'No',\n    high_noise: noiseLevel > 0.3 ? 'Yes' : 'No',\n    missing_p_waves: parseFloat(avgMorphology.p_wave_consistency) < 50 ? 'Yes' : 'No',\n    tachycardia: ecgData.indicators.heart_rate_mean > 100 ? 'Yes' : 'No',\n    bradycardia: ecgData.indicators.heart_rate_mean < 60 ? 'Yes' : 'No'\n  };\n  const anomalyText = Object.entries(anomalyFlags).map(([key, value]) => `${key}: ${value}`).join('\\n');\n\n  const text = `\nCondition: ${ecgData.condition}\nDuration: ${ecgData.duration} sec\nSampling Rate: ${ecgData.sampling_rate} Hz\nTotal Samples: ${signal.length}\n\nHeart Rate Mean: ${ecgData.indicators.heart_rate_mean}\nHRV RMSSD: ${ecgData.indicators.hrv_rmssd}\nQuality Mean: ${ecgData.indicators.quality_mean}\nR Peaks: ${rPeaks.join(', ')}\nRR Intervals: ${rrIntervals}\n\nMean: ${mean.toFixed(4)}\nMedian: ${median.toFixed(4)}\nStd Dev: ${std.toFixed(4)}\nMin: ${min.toFixed(4)}\nMax: ${max.toFixed(4)}\nRange: ${(max - min).toFixed(4)}\nQ1: ${p25.toFixed(4)}\nQ3: ${p75.toFixed(4)}\nIQR: ${iqr.toFixed(4)}\nSkewness: ${skewness.toFixed(4)}\nKurtosis: ${kurtosis.toFixed(4)}\n\nAverage QRS Amplitude: ${avgMorphology.avg_qrs_amplitude}\nAverage T Amplitude: ${avgMorphology.avg_t_amplitude}\nP Wave Consistency: ${avgMorphology.p_wave_consistency}\nIndividual Beats:\n${beatFeatures}\n\nDominant Frequency: ${dominantFrequency.toFixed(2)} Hz\nZero Crossing Rate: ${zeroCrossingRate.toFixed(4)}\nEnergy Low: ${lowFreqEnergy}\nEnergy Mid: ${midFreqEnergy}\nEnergy High: ${highFreqEnergy}\n\nRhythm Regularity: ${rhythmRegularity}\nMax RR Diff: ${maxRRDiff} ms\nAvg RR Diff: ${avgRRDiff.toFixed(2)} ms\nClassification: ${rhythmRegularity === \"regular\" ? \"sinus_rhythm\" : \"needs_review\"}\n\nNoise Level: ${noiseLevel.toFixed(4)}\nBaseline Wander: ${baselineWander.toFixed(4)}\nSNR: ${signalToNoiseRatio.toFixed(2)}\nQuality Grade: ${ecgData.indicators.quality_mean > 0.8 ? \"excellent\" : ecgData.indicators.quality_mean > 0.6 ? \"good\" : \"fair\"}\n\nAnomalies:\n${anomalyText}\n\nCompressed Waveform Data Points: ${compressedSignal}\nCompression Ratio: ${(signal.length / Array.from(importantIndices).length).toFixed(2)}x\n\nRepresentative Heartbeats:\n${representativeBeats}\n\nHeart Rate Status: ${ecgData.indicators.heart_rate_mean > 100 ? \"elevated\" : ecgData.indicators.heart_rate_mean < 60 ? \"low\" : \"normal\"}\nHRV Status: ${ecgData.indicators.hrv_rmssd > 20 ? \"healthy\" : \"reduced\"}\nRhythm Status: ${rhythmRegularity}\nOverall: ${ecgData.condition}\n  `;\n\n  return { json: { output: text.trim() } };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        -96
+      ],
+      "id": "0c01f55a-4809-4e0a-b91b-757dc02e1f72",
+      "name": "PRE-PROCESS for DETAILED REPORT"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputData = $input.all();\nreturn inputData.map(item => {\n  const ecgData = item.json.body.ecg_data;\n  const signal = ecgData.ecg_signal;\n  const rPeaks = ecgData.indicators.r_peaks;\n\n  const mean = signal.reduce((a, b) => a + b, 0) / signal.length;\n  const sorted = [...signal].sort((a, b) => a - b);\n  const min = sorted[0];\n  const max = sorted[sorted.length - 1];\n  const median = sorted[Math.floor(sorted.length / 2)];\n  const variance = signal.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / signal.length;\n  const std = Math.sqrt(variance);\n  const p25 = sorted[Math.floor(sorted.length * 0.25)];\n  const p75 = sorted[Math.floor(sorted.length * 0.75)];\n  const iqr = p75 - p25;\n  const skewness = signal.reduce((sum, val) => sum + Math.pow((val - mean) / std, 3), 0) / signal.length;\n  const kurtosis = signal.reduce((sum, val) => sum + Math.pow((val - mean) / std, 4), 0) / signal.length - 3;\n\n  const beatFeatures = rPeaks.slice(1, -1).map((rPeak, idx) => {\n    const qrsWindow = signal.slice(Math.max(0, rPeak - 40), Math.min(signal.length, rPeak + 40));\n    const tWaveWindow = signal.slice(Math.max(0, rPeak + 40), Math.min(signal.length, rPeak + 200));\n    const pWaveWindow = signal.slice(Math.max(0, rPeak - 200), Math.min(signal.length, rPeak - 40));\n    const nextRR = idx + 2 < rPeaks.length ? rPeaks[idx + 2] : null;\n    const currentRR = rPeaks[idx + 1] - rPeak;\n    const nextRRValue = nextRR ? nextRR - rPeaks[idx + 1] : null;\n    return {\n      beat_number: idx + 1,\n      r_amplitude: signal[rPeak].toFixed(4),\n      qrs_amplitude_range: (Math.max(...qrsWindow) - Math.min(...qrsWindow)).toFixed(4),\n      t_wave_amplitude: Math.max(...tWaveWindow).toFixed(4),\n      p_wave_present: Math.max(...pWaveWindow) > mean + std * 0.5,\n      rr_interval_ms: currentRR,\n      rr_variability: nextRRValue ? Math.abs(currentRR - nextRRValue) : 0\n    };\n  });\n\n  const avgMorphology = {\n    avg_qrs_amplitude: (beatFeatures.reduce((sum, b) => sum + parseFloat(b.qrs_amplitude_range), 0) / beatFeatures.length).toFixed(4),\n    avg_t_amplitude: (beatFeatures.reduce((sum, b) => sum + parseFloat(b.t_wave_amplitude), 0) / beatFeatures.length).toFixed(4),\n    p_wave_consistency: (beatFeatures.filter(b => b.p_wave_present).length / beatFeatures.length * 100).toFixed(1) + \"%\"\n  };\n\n  let zeroCrossings = 0;\n  for (let i = 1; i < signal.length; i++) {\n    if ((signal[i] >= 0 && signal[i-1] < 0) || (signal[i] < 0 && signal[i-1] >= 0)) {\n      zeroCrossings++;\n    }\n  }\n  const dominantFrequency = (zeroCrossings / 2) / ecgData.duration;\n  const zeroCrossingRate = zeroCrossings / signal.length;\n  const lowFreqEnergy = (signal.filter(v => Math.abs(v) < mean + std * 0.5).length / signal.length * 100).toFixed(2) + \"%\";\n  const midFreqEnergy = (signal.filter(v => Math.abs(v) >= mean + std * 0.5 && Math.abs(v) < mean + std * 1.5).length / signal.length * 100).toFixed(2) + \"%\";\n  const highFreqEnergy = (signal.filter(v => Math.abs(v) >= mean + std * 1.5).length / signal.length * 100).toFixed(2) + \"%\";\n\n  const rrIntervals = ecgData.indicators.rr_intervals;\n  const rrDifferences = rrIntervals.slice(1).map((rr, i) => Math.abs(rr - rrIntervals[i]));\n  const maxRRDiff = Math.max(...rrDifferences);\n  const avgRRDiff = rrDifferences.reduce((a, b) => a + b, 0) / rrDifferences.length;\n  const rhythmRegularity = maxRRDiff < 100 ? \"regular\" : maxRRDiff < 200 ? \"slightly_irregular\" : \"irregular\";\n\n  const noiseLevel = std / (max - min);\n  const baselineWander = Math.abs(mean);\n  const signalToNoiseRatio = (max - min) / std;\n\n  const text = `\nDuration: ${ecgData.duration} sec\nSampling Rate: ${ecgData.sampling_rate} Hz\nSamples: ${signal.length}\n\nMean: ${mean.toFixed(4)}\nMedian: ${median.toFixed(4)}\nStd Dev: ${std.toFixed(4)}\nMin: ${min.toFixed(4)}\nMax: ${max.toFixed(4)}\nRange: ${(max - min).toFixed(4)}\nQ1: ${p25.toFixed(4)}\nQ3: ${p75.toFixed(4)}\nIQR: ${iqr.toFixed(4)}\nSkewness: ${skewness.toFixed(4)}\nKurtosis: ${kurtosis.toFixed(4)}\n\nAvg QRS Amplitude: ${avgMorphology.avg_qrs_amplitude}\nAvg T-Wave Amplitude: ${avgMorphology.avg_t_amplitude}\nP-Wave Consistency: ${avgMorphology.p_wave_consistency}\n\nDominant Frequency: ${dominantFrequency.toFixed(2)} Hz\nZero Crossing Rate: ${zeroCrossingRate.toFixed(4)}\nEnergy Distribution Low: ${lowFreqEnergy}\nEnergy Distribution Mid: ${midFreqEnergy}\nEnergy Distribution High: ${highFreqEnergy}\n\nRhythm Regularity: ${rhythmRegularity}\nMax RR Diff: ${maxRRDiff} ms\nAvg RR Diff: ${avgRRDiff.toFixed(2)} ms\n\nNoise Level: ${noiseLevel.toFixed(4)}\nBaseline Wander: ${baselineWander.toFixed(4)}\nSNR: ${signalToNoiseRatio.toFixed(2)}\n  `;\n\n  return { json: { output: text.trim() } };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        96
+      ],
+      "id": "f96f7010-7977-4909-97af-71a53b6b9a5c",
+      "name": "PRE-PROCESS for ANALYSIS"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputData = $input.all();\nreturn inputData.map(item => {\n  const ecgData = item.json.body.ecg_data;\n  const signal = ecgData.ecg_signal;\n\n  const mean = signal.reduce((a, b) => a + b, 0) / signal.length;\n  const sorted = [...signal].sort((a, b) => a - b);\n  const min = sorted[0];\n  const max = sorted[sorted.length - 1];\n  const median = sorted[Math.floor(sorted.length / 2)];\n  const variance = signal.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / signal.length;\n  const std = Math.sqrt(variance);\n  const p25 = sorted[Math.floor(sorted.length * 0.25)];\n  const p75 = sorted[Math.floor(sorted.length * 0.75)];\n  const iqr = p75 - p25;\n  const skewness = signal.reduce((sum, val) => sum + Math.pow((val - mean) / std, 3), 0) / signal.length;\n  const kurtosis = signal.reduce((sum, val) => sum + Math.pow((val - mean) / std, 4), 0) / signal.length - 3;\n\n  const text = `\nDuration of recording: ${ecgData.duration} seconds\nSampling Rate: ${ecgData.sampling_rate} Hz\nTotal Samples: ${signal.length}\n\nCentral Tendency:\nMean amplitude: ${mean.toFixed(4)}\nMedian amplitude: ${median.toFixed(4)}\nStandard deviation: ${std.toFixed(4)}\n\nDistribution:\nMinimum value: ${min.toFixed(4)}\nMaximum value: ${max.toFixed(4)}\nRange: ${(max - min).toFixed(4)}\nFirst quartile (Q1): ${p25.toFixed(4)}\nThird quartile (Q3): ${p75.toFixed(4)}\nInterquartile Range (IQR): ${iqr.toFixed(4)}\n\nShape Metrics:\nSkewness: ${skewness.toFixed(4)}\nKurtosis: ${kurtosis.toFixed(4)}\n\nHeart Rate Mean: ${ecgData.indicators.heart_rate_mean}\nCondition: ${ecgData.condition}\n  `;\n\n  return { json: { output: text.trim() } };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        288
+      ],
+      "id": "a8a6b13c-89c3-4cfc-9b58-86f0fa5fd1a2",
+      "name": "PRE-PROCESS for SUMMARY"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-nano",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-NANO"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are an expert cardiologist analyzing preprocessed ECG data. The data includes key metadata like duration, sampling rate, total samples, statistical features (central tendency, distribution, shape metrics), and basic clinical indicators like heart rate and condition.\n\nGenerate a concise ECG analysis summary. Structure it as follows:\n- Start with basic recording details (duration, sampling rate, samples).\n- Summarize statistical features in bullet points, interpreting what they suggest about the signal (e.g., mean indicates baseline, skewness shows asymmetry).\n- End with a brief clinical summary on heart rate status and overall condition.\n\nKeep it high-level, factual, and under 300 words. Use professional medical language.\nHere is the ECG data:",
+              "role": "system"
+            },
+            {
+              "content": "={{ $json.output }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        368,
+        288
+      ],
+      "id": "eceffc1a-09f8-47dd-9471-22b97e9a4b14",
+      "name": "SUMMARY AGENT",
+      "credentials": {
+        "openAiApi": {
+          "id": "qIfR5cWADcYzi6nZ",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-nano",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-NANO"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are an expert cardiologist analyzing preprocessed ECG data. The data includes metadata (duration, sampling rate, samples), statistical features (mean, median, std dev, distribution metrics, shape metrics), morphological averages (QRS, T-wave, P-wave), frequency features (dominant frequency, zero crossing, energy distribution), rhythm analysis (regularity, RR diffs), and signal quality (noise, baseline, SNR).\n\nGenerate a technical ECG analysis report. Structure it as follows:\n- Recording metadata.\n- Statistical features with interpretations (e.g., high kurtosis suggests peaked waves).\n- Morphological features summary.\n- Frequency characteristics analysis.\n- Rhythm assessment.\n- Signal quality metrics.\n\nFocus on technical insights, use bullet points or sections for clarity, and interpret implications without clinical diagnosis. Keep under 500 words.\nHere is the ECG data:",
+              "role": "system"
+            },
+            {
+              "content": "={{ $json.output }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        368,
+        96
+      ],
+      "id": "725fe5d2-34c8-4322-8ff1-aa1f29ae0a6f",
+      "name": "ANALYSIS AGENT",
+      "credentials": {
+        "openAiApi": {
+          "id": "qIfR5cWADcYzi6nZ",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-nano",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-NANO"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are an expert cardiologist analyzing preprocessed ECG data. The data includes comprehensive details: condition, metadata (duration, sampling rate, samples), clinical indicators (heart rate, HRV, quality, R peaks, RR intervals), statistical features (mean, median, std dev, distribution, shape metrics), morphological features (averages and individual beats), frequency features (dominant frequency, zero crossing, energy distribution), rhythm analysis (regularity, RR diffs, classification), signal quality (noise, baseline, SNR, grade), anomaly flags, compressed waveform, representative heartbeats, and interpretation hints.\n\nGenerate a detailed ECG report. Structure it comprehensively:\n- Metadata and condition.\n- Clinical indicators.\n- Statistical features with interpretations.\n- Morphological analysis (averages and sample beats).\n- Frequency features.\n- Rhythm analysis.\n- Signal quality.\n- Anomaly flags.\n- Compressed and representative waveforms (describe patterns).\n- Interpretation hints with overall assessment.\n\nUse sections, bullets, and tables where appropriate. Provide in-depth interpretations of how features interrelate (e.g., high noise impacting rhythm detection). Aim for 800-1200 words, professional tone.\nHere is the ECG data:",
+              "role": "system"
+            },
+            {
+              "content": "={{ $json.output }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        368,
+        -96
+      ],
+      "id": "fb5a0fbd-7b4b-4183-a9a4-5c63a8dbb90c",
+      "name": "REPORTING AGENT",
+      "credentials": {
+        "openAiApi": {
+          "id": "qIfR5cWADcYzi6nZ",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-nano",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-NANO"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are an expert cardiologist analyzing preprocessed ECG data. The data includes metadata (duration, sampling rate, samples), clinical indicators (heart rate, HRV, quality, condition), rhythm analysis (regularity, RR differences, classification), signal quality (noise, baseline, SNR, grade, P-wave consistency), anomaly detection flags, and interpretation hints.\n\nGenerate a clinical note that interprets these features comprehensively. Structure it as follows:\n- Recording details.\n- Clinical indicators.\n- Rhythm analysis with interpretations.\n- Signal quality assessment.\n- Anomaly detection with flags.\n- Interpretation hints, including heart rate/HRV/rhythm status and overall assessment, noting any need for further review.\n\nFocus on clinical implications, use professional language, and suggest potential diagnoses or concerns based on data (e.g., irregular rhythm may indicate arrhythmia). Keep concise yet thorough, under 400 words.\nHere is the ECG data:",
+              "role": "system"
+            },
+            {
+              "content": "={{ $json.output }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        368,
+        -288
+      ],
+      "id": "789f160c-abc8-4fe8-aa77-f85f87f6884a",
+      "name": "CLINICAL NOTE AGENT",
+      "credentials": {
+        "openAiApi": {
+          "id": "qIfR5cWADcYzi6nZ",
+          "name": "OpenAi account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Message a model": {
+      "main": [
+        []
+      ]
+    },
+    "Webhook - RECEIVE DATA FROM THE WEB": {
+      "main": [
+        [
+          {
+            "node": "Switch AS PER TASK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch AS PER TASK": {
+      "main": [
+        [
+          {
+            "node": "PRE-PROCESS for CLINICAL NOTES",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PRE-PROCESS for DETAILED REPORT",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PRE-PROCESS for ANALYSIS",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PRE-PROCESS for SUMMARY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PRE-PROCESS for CLINICAL NOTES": {
+      "main": [
+        [
+          {
+            "node": "CLINICAL NOTE AGENT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PRE-PROCESS for DETAILED REPORT": {
+      "main": [
+        [
+          {
+            "node": "REPORTING AGENT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PRE-PROCESS for ANALYSIS": {
+      "main": [
+        [
+          {
+            "node": "ANALYSIS AGENT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PRE-PROCESS for SUMMARY": {
+      "main": [
+        [
+          {
+            "node": "SUMMARY AGENT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SUMMARY AGENT": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ANALYSIS AGENT": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "REPORTING AGENT": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CLINICAL NOTE AGENT": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "4ecb7561-f4f5-4433-8cbf-9460bd6cdd0e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "24e1bd1313acc5cce1cfe6e3e8e739bfc00f21372a0fec8bd222cdbe364cb1a0"
+  },
+  "id": "5bYxPUK3QmUe6vrq",
+  "tags": []
+}
